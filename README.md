@@ -1,5 +1,22 @@
 
-~~~txt
+# TITANIC
+> **By:** [@Sheñey](https://github.com/Sheniey)
+>
+> **License:** None
+>
+> **Date:** 02/02/2025
+
+---
+
+[Scheme](#scheme "Goto the Scheme...") | [**Code**](#code "Goto the Arduino Code...")
+
+---
+
+<br>
+
+## Scheme:
+---
+```txt
 │ ┃ ┄ ┅ ┆ ┇ ┈ ┉ ┊ ┋
 ─ ━ ━ ┄ ┅ ┆ ┇ ┈ ┉ ┊ ┋
 └ ┗ ┘ ┛ ┌ ┏ ┐ ┓ ├ ┝ ┞ ┟ ┠ ┡ ┢ ┣
@@ -40,32 +57,60 @@
  Arduino Nano [GND - 29p]: Pin [Catodo] de los LEDs y Alimentación Negativa para el Arduino
  Arduino Nano [VIN - 30p]: Alimentación del Arduino con 4.4V
 
-~~~
+        L293D
+ VCC1 ─▓▓▓▓▓▓▓─ VCC2
+  IN1 ─▓▓▓▓▓▓▓─ IN4
+ OUT1 ─▓▓▓▓▓▓▓─ OUT4
+  GND ─▓▓▓▓▓▓▓─ GND
+  GND ─▓▓▓▓▓▓▓─ GND
+ OUT2 ─▓▓▓▓▓▓▓─ OUT3
+  IN2 ─▓▓▓▓▓▓▓─ IN3
+  EN1 ─▓▓▓▓▓▓▓─ EN2
 
-~~~cpp
+ IC L293D [VCC1 -  1p]: Alimentación del IC [5V]
+ IC L293D [IN1  -  2p]: Entrada de la Terminal 1 del Motor A
+ IC L293D [OUT1 -  3p]: Salida de la Terminal 1 del Motor A
+ IC L293D [GND  -  4p]: Terminal de Disipación Termica [Ground]
+ IC L293D [GND  -  5p]: Terminal de Disipación Termica [Ground]
+ IC L293D [OUT2 -  6p]: Salida de la Terminal 2 del Motor A
+ IC L293D [IN2  -  7p]: Entrada de la Terminal 2 del Motor A
+ IC L293D [EN1  -  8p]: Habilitador/Velocidad del Motor A
+ IC L293D [EN2  -  9p]: Habilitador/Velocidad del Motor B 
+ IC L293D [IN3  - 10p]: Entrada de la Terminal 1 del Motor B
+ IC L293D [OUT3 - 11p]: Salida de la Terminal 1 del Motor B
+ IC L293D [GND  - 12p]: Terminal de Disipación Termica [Ground]
+ IC L293D [GND  - 13p]: Terminal de Disipación Termica [Ground]
+ IC L293D [OUT4 - 14p]: Salida de la Terminal 2 del Motor B
+ IC L293D [IN4  - 15p]: Entrada de la Terminal 2 del Motor B
+ IC L293D [VCC2 - 16p]: Alimentación para los Motores [5V - 36V]
+```
+---
+<br>
+
+## Code:
+---
+```cpp
 #include <IRemote.h>
-#define IRMODULE 2
-
-// Disabling Communications:
-ADCSRA &= ~(1 << ADEN); // ADC
-TWCR &= ~(1 << TWEN); // I2C
+#include <avr/sleep.h>
+#include <avr/power.h>
 
 // Initialize IR Module RQ-S005:
 IRrecv irrecv(IRMODULE);
 decode_results res;
 
 // Dictionaries:
-const int PINS[10] = { 3, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
-#define PIN_LEDS 0 // TODO: Place a 330 Ohms Resistor in the Pin
-#define PIN_MOTOR1_IN1 1
-#define PIN_MOTOR1_IN2 2
-#define PIN_MOTOR2_IN1 3
-#define PIN_MOTOR2_IN2 4
-#define PIN_L293D_SIGNAL 5
-#define PIN_MOTOR1_EN 6
-#define PIN_MOTOR2_EN 7
-#define PIN_PWRBTN 8 // Power Button
-#define PIN_STATUS_LED 9
+const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
+#define PIN_INT 0 // INT0
+#define PIN_LEDS 1 // TODO: Place a 330 Ohms Resistor in the Pin
+#define PIN_MOTOR1_IN1 2
+#define PIN_MOTOR1_IN2 3
+#define PIN_MOTOR2_IN1 4
+#define PIN_MOTOR2_IN2 5
+#define PIN_L293D_SIGNAL 6
+#define PIN_MOTOR1_EN 7
+#define PIN_MOTOR2_EN 8
+#define PIN_PWRBTN 9 // Power Button
+#define PIN_STATUS_LED 10
 
 const int MARCHS[7] = { 0, 43, 86, 129, 172, 215, 255 };
 #define Z 0
@@ -79,7 +124,8 @@ const int MARCHS[7] = { 0, 43, 86, 129, 172, 215, 255 };
 
 const int LED_MODES[10] = { 0, 25, 50, 75, 100, 125, 150, 175, 200, 255 };
 
-class Titanic {
+class Titanic
+{
     private: 
         static int MOTOR1[3];
         static int MOTOR2[3];
@@ -103,16 +149,15 @@ class Titanic {
             statusLEDPin
         }
 
-        void turnStatusLED() {
-            digitalWrite(statusLEDPin, 1);
-            millis(__DELAY)
-            digitalWrite(statusLEDPin, 0);
-            millis(__DELAY)
+        bool turnStatusLED() {
+            bool negStatusLED = !digitalRead(statusLEDPin);
+            digitalWrite(statusLEDPin, negStatusLED);
+            return negStatusLED
         }
 
         void testStatusLED() {
             digitalWrite(statusLEDPin, 1);
-            millis(200)
+            millis(__DELAY__)
             digitalWrite(statusLEDPin, 0);
         }
 
@@ -164,25 +209,39 @@ int speed = M3;
 char lastMove[2] = 'sp';
 int ledIntensity = 0;
 
-void suspendsPin() {
+void sleepMode() {
+    // Suspend the CPU and Enable the Pin [INT0] to Cancel it
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    sleep_enable();
+    noInterrupts();
+    sleep_bod_disable();
+    interrupts();
+    sleep_cpu();
+    sleep_disable();
+
     for (int pin = 0; pin < 10; pin++) {
         pinMode(PINS[pin], LOW);
     }
 }
 
-void activatesPin() {
+void activeMode() {
     for (int pin = 0; pin < 10; pin++) {
         pinMode(PINS[pin], OUTPUT);
     }
     pinMode(PINS[PIN_L293D_SIGNAL], INPUT); pinMode(PINS[PIN_PWRBTN], INPUT);
 }
 
-void setup() {
+void setup()
+{
     // Startup Pin Modes:
     pinMode(PINS[PIN_LEDS], OUTPUT); pinMode(PINS[PIN_STATUS_LED], OUTPUT);
     pinMode(PINS[PIN_L293D_SIGNAL], INPUT); pinMode(PINS[PIN_PWRBTN], INPUT);
 
     irrecv.enableIRIn(); // Enable: IR Receptor
+
+    // Disabling Communications:
+    ADCSRA &= ~(1 << ADEN); // ADC
+    TWCR &= ~(1 << TWEN); // I2C
 
     Serial.begin(9600);
     Serial.println("""
@@ -275,25 +334,44 @@ void main(int response) {
         if (isNumber) {
             switch (lastMove) {
                 case 'sp':
+                    speed = 0;
                     break;
-                default;
-                    main(response)
+                case 'mu':
+                    main(0xE09E)
+                    break;
+                case 'ml':
+                    main(0xE09F)
+                    break;
+                case 'md':
+                    main(0xE0A0)
+                    break;
+                case 'mr':
+                    main(0xE0A1)
+                    break;
+                case 'tl':
+                    main(0xE0A2)
+                    break;
+                case 'tr':
+                    main(0xE0A3)
+                    break;
+                default:
+                    ship.turnStatusLED();
+                    break;
             }
             isNumber = false;
         }
 }
 
-void loop() {
+void loop()
+{
     if (irrecv.decode(&res)) { // Decode to HEX Value
-        switch (res.value) {
-            case 0xC4: 
-                on = !on;
-                break;
-            default:
-                main(res.value);
-                break;
+        if (on) {
+            main(res.value);
+        } else {
+            powerButtonPressed = res.value == 0xC4 // LG: Button: [Power]
+            on = powerButtonPressed ? !on : on;
+            powerButtonPressed && !on sleepPins() : activePins();
         }
-        
         irrecv.resume();
     }
 }
@@ -302,4 +380,5 @@ void loop() {
 // __SP: Stop
 // __M<adr>: Move to <Address>
 // __T<adr>: Turn to <Address>
-~~~
+```
+---
