@@ -42,6 +42,7 @@
  D12 ─▓▓██████▓▓─ D13
         ██████
 
+ Arduino Nano [RST -  3p]: Pin [RESET] del Arduino Nano
  Arduino Nano [GND -  4p]: Pin [GND] del IC L293D y Pin [GND] del Modulo IR RQ-S005
  Arduino Nano [D3  -  6p]: Salida PWM que Reguala la Intensidad de los LEDs
  Arduino Nano [D5  -  8p]: Pin [IN 1] del IC L293D para el Motor 1
@@ -53,9 +54,11 @@
  Arduino Nano [D11 - 14p]: Salida PWM para la Velocidad del Motor 2; Pin [EN 3,4] del IC L293D
  Arduino Nano [D12 - 15p]: Botón de Encendido/Apagado
  Arduino Nano [D13 - 16p]: Pin [Anodo] del LED de Estatus/Signal y de los LEDs
+ Arduino Nano [A0  - 17p]: Salida Digital para la Terminal [Active] del Relé para el Pin [VCC2] del IC L293D
  Arduino Nano [5V  - 27p]: Pin [VCC1] del IC L293D y Pin [VCC] del Modulo IR RQ-S005
- Arduino Nano [GND - 29p]: Pin [Catodo] de los LEDs y Alimentación Negativa para el Arduino
+ Arduino Nano [GND - 29p]: Pin [Catodo] de los LEDs, Alimentación Negativa para el Arduino y para el Pin [NC] del Relé
  Arduino Nano [VIN - 30p]: Alimentación del Arduino con 4.4V
+
 
         L293D
  VCC1 ─▓▓▓▓▓▓▓─ VCC2
@@ -83,6 +86,9 @@
  IC L293D [OUT4 - 14p]: Salida de la Terminal 2 del Motor B
  IC L293D [IN4  - 15p]: Entrada de la Terminal 2 del Motor B
  IC L293D [VCC2 - 16p]: Alimentación para los Motores [5V - 36V]
+
+
+ ─▓▓▓▓▓▓▓─
 ```
 ---
 <br>
@@ -92,14 +98,13 @@
 ```cpp
 #include <IRemote.h>
 #include <avr/sleep.h>
-#include <avr/power.h>
 
 // Initialize IR Module RQ-S005:
 IRrecv irrecv(IRMODULE);
 decode_results res;
 
 // Dictionaries:
-const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
+const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
 #define PIN_INT 0 // INT0
 #define PIN_LEDS 1 // TODO: Place a 330 Ohms Resistor in the Pin
 #define PIN_MOTOR1_IN1 2
@@ -111,6 +116,7 @@ const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
 #define PIN_MOTOR2_EN 8
 #define PIN_PWRBTN 9 // Power Button
 #define PIN_STATUS_LED 10
+#define PIN_MOTOR_VCC2 11
 
 const int MARCHS[7] = { 0, 43, 86, 129, 172, 215, 255 };
 #define Z 0
@@ -127,10 +133,10 @@ const int LED_MODES[10] = { 0, 25, 50, 75, 100, 125, 150, 175, 200, 255 };
 class Titanic
 {
     private: 
-        static int MOTOR1[3];
-        static int MOTOR2[3];
-        static const int ROTATION_CONST = 3;
-        static const int __DELAY = 1000;
+        int POWER_PIN, MOTOR1[3], MOTOR2[3];
+        static const unsigned int ROTATION_CONST = 3;
+        static unsigned int __DELAY = 200;
+        static unsigned int __ANOTHER_DELAY = __DELAY * 5;
 
         void setupEngines(int en1, int en2, bool in1, bool in2) {
             analogWrite(MOTOR1[0], en1); analogWrite(MOTOR2[0], en2); // Setup the Speed to Motors
@@ -140,30 +146,62 @@ class Titanic
 
     public:
         static const int __DEFAULT_SPEED = MARCHS[M3];
+        int statusLED, defaultSpeed;
         
-        Titanic(int pinsMotor1[3], int pinsMotor2[3], int statusLEDPin = 13,  int defaultSpeed = __DEFAULT_SPEED) {
+        Titanic(
+                int powerPin,
+                int pinsMotor1[3],
+                int pinsMotor2[3],
+                int statusLEDPin = 13,
+                int defaultMotorSpeed = __DEFAULT_SPEED
+            )
+        {
+            POWER_PIN = powerPin;
             MOTOR1 = pinsMotor1; MOTOR2 = pinsMotor2;
+            statusLED = statusLEDPin;
+            defaultSpeed = defaultMotorSpeed;
+            pinMode(POWER_PIN, OUTPUT);
             for (int i = 0; i < 3; i++) {
                 pinMode(MOTOR1[i], OUTPUT); pinMode(MOTOR2[i], OUTPUT);
             }
-            statusLEDPin
+            pinMode(statusLED, OUTPUT);
         }
 
-        bool turnStatusLED() {
-            bool negStatusLED = !digitalRead(statusLEDPin);
-            digitalWrite(statusLEDPin, negStatusLED);
-            return negStatusLED
+        void turnON() {
+            digitalWrite(POWER_PIN, 1);
         }
 
-        void testStatusLED() {
-            digitalWrite(statusLEDPin, 1);
-            millis(__DELAY__)
-            digitalWrite(statusLEDPin, 0);
+        void turnOFF() {
+            digitalWrite(POWER_PIN, 0);
+        }
+
+        void initStatusLED() {
+            digitalWrite(statusLED, 1);
+            millis(__ANOTHER_DELAY);
+            digitalWrite(statusLED, 0);
+            millis(__ANOTHER_DELAY);
+        }
+
+        void writeErrorStatusLED() {
+            __DELAY /= 10;
+            __ANOTHER_DELAY = __DELAY * 5;
+        }
+
+        void testStatusLED(int dly = __DELAY) {
+            digitalWrite(statusLED, 1);
+            millis(dly);
+            digitalWrite(statusLED, 0);
         }
 
         void suspendMotors() {
             for (int i = 0; i < 3; i++) {
                 pinMode(MOTOR1[i], LOW); pinMode(MOTOR2[i], LOW);
+            }
+        }
+
+        void activateMotors() {
+            for (int i = 0; i < 3; i++) {
+                pinMode(MOTOR1[i], OUTPUT); pinMode(MOTOR2[i], OUTPUT);
             }
         }
 
@@ -200,48 +238,50 @@ class Titanic
 
 const int motor1[3] = { PINS[PIN_MOTOR1_EN], PINS[PIN_MOTOR1_IN1], PINS[PIN_MOTOR1_IN2] }; // Motor 1 Pins
 const int motor2[3] = { PINS[PIN_MOTOR2_EN], PINS[PIN_MOTOR2_IN1], PINS[PIN_MOTOR2_IN2] }; // Motor 2 Pins
-Titanic ship(motor1, motor2);
+Titanic ship(PINS[PIN_MOTOR_VCC2], motor1, motor2);
 
 // Default Global Variables:
 bool on = false;
 bool isNumber = false;
-int speed = M3;
-char lastMove[2] = 'sp';
-int ledIntensity = 0;
+unsigned int speed = M3;
+char lastMove[3] = 'sp';
+unsigned int ledIntensity = 0;
 
 void sleepMode() {
-    // Suspend the CPU and Enable the Pin [INT0] to Cancel it
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    // Suspend the CPU
     sleep_enable();
-    noInterrupts();
-    sleep_bod_disable();
-    interrupts();
     sleep_cpu();
     sleep_disable();
 
+    ship.turnOFF();
+    ship.suspendMotors();
     for (int pin = 0; pin < 10; pin++) {
         pinMode(PINS[pin], LOW);
     }
+    pinMode(PINS[PIN_STATUS_LED], OUTPUT); pinMode(PINS[PIN_PWRBTN], INPUT);
 }
 
 void activeMode() {
+    ship.turnON();
+    ship.activateMotors();
     for (int pin = 0; pin < 10; pin++) {
         pinMode(PINS[pin], OUTPUT);
     }
     pinMode(PINS[PIN_L293D_SIGNAL], INPUT); pinMode(PINS[PIN_PWRBTN], INPUT);
 }
 
-void setup()
-{
+void setup() {
     // Startup Pin Modes:
-    pinMode(PINS[PIN_LEDS], OUTPUT); pinMode(PINS[PIN_STATUS_LED], OUTPUT);
+    pinMode(PINS[PIN_LEDS], OUTPUT); pinMode(PINS[PIN_STATUS_LED], OUTPUT); pinMode(PINS[PIN_MOTOR_POWER], OUTPUT);
     pinMode(PINS[PIN_L293D_SIGNAL], INPUT); pinMode(PINS[PIN_PWRBTN], INPUT);
+    ship.turnON();
 
     irrecv.enableIRIn(); // Enable: IR Receptor
 
     // Disabling Communications:
     ADCSRA &= ~(1 << ADEN); // ADC
     TWCR &= ~(1 << TWEN); // I2C
+    SPCR &= ~(1 << SPE); // SPI
 
     Serial.begin(9600);
     Serial.println("""
@@ -253,13 +293,12 @@ void setup()
     - Ok!!
 """);
     Serial.end();
+    // Serial Disable [UART]
+    UCSR0B &= ~(1 << RXEN0); // Receiver UART
+    UCSR0B &= ~(1 << TXEN0); // Transmitter UART
 }
 
-#define MOVE_RIGHT
 void main(int response) {
-    ship.turnStatusLED();
-    analogWrite(PINS[PIN_LEDS], LED_MODES[ledIntensity]); // LED Pins
-
     switch (response) {
         case 0x31: // LG Button: [1]
             speed = M1;
@@ -285,8 +324,14 @@ void main(int response) {
             speed = M6;
             isNumber = true;
             break;
+        case 0x38: // LG Button: [8]
+            digitalRead(PIN_MOTOR_POWER) ? ship.turnON() : ship.turnOFF(); // Turn <ON/OFF> the Motors
+            break;
         case 0x30: // LG Button: [0]
             speed = Z;
+            break;
+        case 0xE0A2: // LG Button: [Mute]
+            ship.stop();
             break;
         case 0xE09C: // LG Button: [UpCh+]
             speed += speed >= 6 ? 0 : 1;
@@ -302,29 +347,29 @@ void main(int response) {
             break;
         case 0xE09E: // LG Button: [UpArrow]
             ship.moveForward(speed);
-            lastMove[2] = 'mu';
+            lastMove = 'mu';
             break;
         case 0xE09F: // LG Button: [LeftArrow]
             ship.moveLeftward(speed);
-            lastMove[2] = 'ml';
+            lastMove = 'ml';
             break;
         case 0xE0A0: // LG Button: [DownArrow]
             ship.moveBack(speed);
-            lastMove[2] = 'md';
+            lastMove = 'md';
             break;
         case 0xE0A1: // LG Button: [RightArrow]
             ship.moveRight(speed);
-            lastMove[2] = 'mr';
+            lastMove = 'mr';
             break;
-        case 0xE0A2: // LG Button: [Back]
+        case 0xE0A3: // LG Button: [Back]
             ship.turnLeft(speed);
-            lastMove[2] = 'tl';
+            lastMove = 'tl';
             break;
-        case 0xE0A3: // LG Button: [I Don't Know but I think It's the one Below the RightArrow Button]
+        case 0xE0A5: // LG Button: [I Don't Know but I think It's the one Below the RightArrow Button]
             ship.turnLeft(speed);
-            lastMove[2] = 'tr';
+            lastMove = 'tr';
             break;
-        case 0xE0A3: // LG Button: [Info]
+        case 0xE0A4: // LG Button: [Info]
             ship.testStatusLED();
             break;
         default:
@@ -337,40 +382,49 @@ void main(int response) {
                     speed = 0;
                     break;
                 case 'mu':
-                    main(0xE09E)
+                    main(0xE09E);
                     break;
                 case 'ml':
-                    main(0xE09F)
+                    main(0xE09F);
                     break;
                 case 'md':
-                    main(0xE0A0)
+                    main(0xE0A0);
                     break;
                 case 'mr':
-                    main(0xE0A1)
+                    main(0xE0A1);
                     break;
                 case 'tl':
-                    main(0xE0A2)
+                    main(0xE0A2);
                     break;
                 case 'tr':
-                    main(0xE0A3)
+                    main(0xE0A3);
                     break;
                 default:
-                    ship.turnStatusLED();
+                    ship.writeErrorStatusLED();
                     break;
             }
             isNumber = false;
         }
 }
 
-void loop()
-{
+void loop() {
+    ship.initStatusLED();
+    analogWrite(PINS[PIN_LEDS], LED_MODES[ledIntensity]); // LED Pins
+
+    on = digitalRead(PINS[PIN_PWRBTN]);
+
     if (irrecv.decode(&res)) { // Decode to HEX Value
         if (on) {
             main(res.value);
         } else {
             powerButtonPressed = res.value == 0xC4 // LG: Button: [Power]
             on = powerButtonPressed ? !on : on;
-            powerButtonPressed && !on sleepPins() : activePins();
+            if (!on) {
+                analogWrite(PINS[PIN_LEDS], 0); // LED Pins
+                sleepMode();
+            } else {
+                activeMode();
+            }
         }
         irrecv.resume();
     }
