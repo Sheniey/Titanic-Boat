@@ -86,9 +86,6 @@
  IC L293D [OUT4 - 14p]: Salida de la Terminal 2 del Motor B
  IC L293D [IN4  - 15p]: Entrada de la Terminal 2 del Motor B
  IC L293D [VCC2 - 16p]: Alimentación para los Motores [5V - 36V]
-
-
- ─▓▓▓▓▓▓▓─
 ```
 ---
 <br>
@@ -104,9 +101,8 @@ IRrecv irrecv(IRMODULE);
 decode_results res;
 
 // Dictionaries:
-const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
-#define PIN_INT 0 // INT0
-#define PIN_LEDS 1 // TODO: Place a 330 Ohms Resistor in the Pin
+static const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 }; // Active Pins
+#define PIN_LEDS 1 // TODO: Place a ~330 Ohms Resistor in the Pin
 #define PIN_MOTOR1_IN1 2
 #define PIN_MOTOR1_IN2 3
 #define PIN_MOTOR2_IN1 4
@@ -118,7 +114,7 @@ const int PINS[10] = { 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
 #define PIN_STATUS_LED 10
 #define PIN_MOTOR_VCC2 11
 
-const int MARCHS[7] = { 0, 43, 86, 129, 172, 215, 255 };
+static const int MARCHS[7] = { 0, 43, 86, 129, 172, 215, 255 }; // Speed => PWM Wave
 #define Z 0
 #define M1 1
 #define M2 2
@@ -128,7 +124,7 @@ const int MARCHS[7] = { 0, 43, 86, 129, 172, 215, 255 };
 #define M6 6
 #define R 4
 
-const int LED_MODES[10] = { 0, 25, 50, 75, 100, 125, 150, 175, 200, 255 };
+static const int LED_MODES[10] = { 0, 614, 677, 715, 761, 818, 880, 921, 957, 1023 }; // LED Intensity
 
 class Titanic
 {
@@ -430,9 +426,10 @@ void loop() {
     }
 }
 
-// "lastMoveCode" Be Like:
-// __SP: Stop
-// __M<adr>: Move to <Address>
-// __T<adr>: Turn to <Address>
+/* "lastMoveCode" Be Like:
+*    __SP: Stop
+*    __M<adr>: Move to <Address>
+*    __T<adr>: Turn to <Address>
+*/
 ```
 ---
